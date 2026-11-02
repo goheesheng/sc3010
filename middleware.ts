@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
-// Edge middleware: the ONLY thing guarding /admin and /admin-secure here.
+// Edge middleware: the ONLY thing guarding /admin here.
 //
 // It checks for a `session` cookie and bounces unauthenticated users to
 // /login. This is a very common real-world pattern: "put the auth check in
@@ -30,6 +30,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Guard both admin routes with middleware.
-  matcher: ["/admin/:path*", "/admin-secure/:path*"],
+  // Guard the admin route with middleware.
+  matcher: ["/admin/:path*"],
 };

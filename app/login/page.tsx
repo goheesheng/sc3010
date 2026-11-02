@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 // Stub login. No real credential check — this is about the middleware bypass,
 // not about authentication logic. Submitting the form just sets the session
-// cookie that both the middleware and the /admin-secure page look for.
+// cookie that the middleware looks for.
 async function login() {
   "use server";
   (await cookies()).set("session", "demo-admin-session", {

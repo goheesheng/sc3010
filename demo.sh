@@ -5,12 +5,10 @@
 # LOCAL-ONLY educational demo. Run it only against http://localhost.
 # Do NOT point it at a server you do not own and have permission to test.
 #
-# What this script shows, in three requests:
+# What this script shows, in two requests:
 #   [1] A normal visitor with no session is correctly redirected to /login.
 #   [2] An attacker who adds ONE forged header walks straight into /admin
 #       with no session at all — this is the vulnerability (CVE-2025-29927).
-#   [3] The SAME attack fails against /admin-secure, which re-checks the
-#       session inside the page itself — this is the defense (defense in depth).
 #
 # The script prints only the signal (status code + redirect + a proof line),
 # never the full HTML page, so it reads cleanly on screen / on camera.
@@ -114,17 +112,4 @@ else
   # and the admin headline is NOT in the body.
   echo "    >>> bypass failed (this is a PATCHED build — good)"
 fi
-
-# -----------------------------------------------------------------------------
-# [3] THE DEFENSE — same attack, different page.
-# /admin-secure re-checks the session INSIDE the page (server-side), not only
-# in middleware. Even when the forged header skips middleware, that in-page
-# check still runs and redirects the attacker to /login (HTTP 307).
-# Lesson: never rely on middleware as your only authorization boundary.
-# -----------------------------------------------------------------------------
-echo
-echo "[3] Same attack vs hardened page        GET /admin-secure   (+ forged header)"
-echo "    \$ curl -i -H \"$FORGED\" $BASE/admin-secure"
-hit "$BASE/admin-secure" -H "$FORGED"
-echo "    expected: 307 -> /login   (in-page check holds even if middleware is skipped)"
 echo

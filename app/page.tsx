@@ -13,11 +13,6 @@ export default function Home() {
           middleware. Vulnerable to the header bypass on unpatched Next.js.
         </li>
         <li>
-          <Link href="/admin-secure">/admin-secure</Link> — protected by
-          middleware <strong>and</strong> an in-page server-side session check
-          (defense-in-depth). Survives the bypass.
-        </li>
-        <li>
           <Link href="/login">/login</Link> — stub login that sets the session
           cookie.
         </li>

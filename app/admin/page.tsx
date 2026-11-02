@@ -3,8 +3,6 @@
 // There is deliberately NO server-side session check in this page. On an
 // unpatched Next.js, forging `x-middleware-subrequest` skips the middleware,
 // so this page renders for an attacker with no session cookie at all.
-//
-// Compare with /admin-secure, which adds the missing check.
 export default function AdminPage() {
   return (
     <main>
